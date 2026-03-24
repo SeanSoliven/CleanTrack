@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth } from './firebase';
 import './App.css';
 import BottomNav from './components/shared/BottomNav';
 import StartupPage from './pages/StartupPage';
@@ -9,6 +11,7 @@ import ReportPage from './pages/ReportPage';
 import ActivitiesPage from './pages/ActivitiesPage';
 import ProfilePage from './pages/ProfilePage';
 import EditProfilePage from './pages/EditProfilePage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import NotificationsPage from './pages/NotificationsPage';
 import MyAddressPage from './pages/MyAddressPage';
 import MyReportsPage from './pages/MyReportsPage';
@@ -26,7 +29,8 @@ function App() {
     navigate('home');
   };
 
-  const onLogout = () => {
+  const onLogout = async () => {
+    await signOut(auth);
     setUser(null);
     navigate('startup');
   };
@@ -43,7 +47,8 @@ function App() {
         {screen === 'report' && <ReportPage onNavigate={navigate} />}
         {screen === 'activities' && <ActivitiesPage />}
         {screen === 'profile' && <ProfilePage user={user} onLogout={onLogout} onNavigate={navigate} />}
-        {screen === 'edit-profile' && <EditProfilePage user={user} onNavigate={navigate} />}
+        {screen === 'edit-profile' && <EditProfilePage user={user} onNavigate={navigate} onUpdateUser={(u) => setUser(u)} />}
+        {screen === 'change-password' && <ChangePasswordPage onNavigate={navigate} />}
         {screen === 'notifications' && <NotificationsPage onNavigate={navigate} />}
         {screen === 'my-address' && <MyAddressPage onNavigate={navigate} />}
         {screen === 'my-reports' && <MyReportsPage onNavigate={navigate} />}

@@ -38,6 +38,16 @@ function ProfilePage({ user, onLogout, onNavigate }) {
             <span className="prof-menu-arrow">›</span>
           </button>
         ))}
+        <button className="prof-menu-item" onClick={() => onNavigate('change-password')}>
+          <div className="prof-menu-ico" style={{ background: '#fff3e0' }}>
+            🔒
+          </div>
+          <div className="prof-menu-text">
+            <strong>Change Password</strong>
+            <span>Update your password</span>
+          </div>
+          <span className="prof-menu-arrow">›</span>
+        </button>
       </div>
       <button className="logout-btn" onClick={onLogout}>
         Sign Out

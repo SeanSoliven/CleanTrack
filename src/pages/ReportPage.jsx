@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import { REPORT_TYPES } from '../constants';
 
 function ReportPage({ onNavigate }) {
@@ -6,7 +8,31 @@ function ReportPage({ onNavigate }) {
   const [type, setType] = useState(null);
   const [form, setForm] = useState({ address: '', description: '', severity: 'medium' });
   const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [refNumber] = useState(() => Math.floor(Math.random() * 90000 + 10000));
+
+  const submitReport = async () => {
+    if (!form.address) return;
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'reports'), {
+        type: type.label,
+        icon: type.icon,
+        address: form.address,
+        description: form.description,
+        severity: form.severity,
+        status: 'Pending',
+        refNumber: `CT-${refNumber}`,
+        userId: auth.currentUser?.uid || null,
+        userEmail: auth.currentUser?.email || null,
+        createdAt: serverTimestamp(),
+      });
+      setDone(true);
+    } catch (error) {
+      console.error('Error saving report:', error);
+    }
+    setLoading(false);
+  };
 
   if (done) {
     return (
@@ -142,8 +168,12 @@ function ReportPage({ onNavigate }) {
               ))}
             </div>
           </div>
-          <button className={`next-btn ${form.address ? 'on' : ''}`} disabled={!form.address} onClick={() => setDone(true)}>
-            Submit Report
+          <button
+            className={`next-btn ${form.address ? 'on' : ''}`}
+            disabled={!form.address || loading}
+            onClick={submitReport}
+          >
+            {loading ? 'Submitting...' : 'Submit Report'}
           </button>
         </div>
       )}

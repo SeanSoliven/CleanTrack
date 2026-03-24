@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { auth } from '../firebase';
 
 function RegisterPage({ onNavigate, onLogin }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
@@ -43,31 +45,35 @@ function RegisterPage({ onNavigate, onLogin }) {
     setFieldErrors({ ...fieldErrors, confirm: error });
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!form.name || !form.email || !form.password || !form.confirm) {
       setErr('Please fill in all fields.');
       return;
     }
 
-    // Validate all fields
     const emailErr = validateEmail(form.email);
     const passwordErr = validatePassword(form.password);
     const confirmErr = validateConfirm(form.password, form.confirm);
 
-    setFieldErrors({
-      email: emailErr,
-      password: passwordErr,
-      confirm: confirmErr,
-    });
+    setFieldErrors({ email: emailErr, password: passwordErr, confirm: confirmErr });
 
-    // Don't proceed if any errors
     if (emailErr || passwordErr || confirmErr) {
       setErr('');
       return;
     }
 
-    setErr('');
-    onLogin({ email: form.email, name: form.name });
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
+      await updateProfile(userCredential.user, { displayName: form.name });
+      setErr('');
+      onLogin({ email: form.email, name: form.name });
+    } catch (error) {
+      if (error.code === 'auth/email-already-in-use') {
+        setErr('Email already registered. Please sign in.');
+      } else {
+        setErr('Registration failed. Please try again.');
+      }
+    }
   };
 
   return (

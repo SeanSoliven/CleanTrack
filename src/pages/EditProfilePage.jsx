@@ -1,13 +1,53 @@
 import React, { useState } from 'react';
+import { updateProfile } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import SubHeader from '../components/shared/SubHeader';
 
-function EditProfilePage({ user, onNavigate }) {
+function EditProfilePage({ user, onNavigate, onUpdateUser }) {
   const [form, setForm] = useState({
     name: user?.name || '',
-    email: user?.email || '',
-    phone: '+63 912 345 6789',
-    barangay: 'Barangay 1',
+    phone: '',
+    barangay: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      if (!auth.currentUser) return;
+      const docRef = doc(db, 'users', auth.currentUser.uid);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        setForm((prev) => ({
+          ...prev,
+          phone: data.phone || '',
+          barangay: data.barangay || '',
+        }));
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const saveChanges = async () => {
+    setLoading(true);
+    try {
+      await updateProfile(auth.currentUser, { displayName: form.name });
+      await setDoc(doc(db, 'users', auth.currentUser.uid), {
+        name: form.name,
+        email: auth.currentUser.email,
+        phone: form.phone,
+        barangay: form.barangay,
+      });
+      if (onUpdateUser) onUpdateUser({ ...user, name: form.name });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
+    setLoading(false);
+  };
 
   return (
     <div className="sub-page page-full">
@@ -34,8 +74,9 @@ function EditProfilePage({ user, onNavigate }) {
             <label>Email</label>
             <input
               type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              value={user?.email || ''}
+              disabled
+              style={{ opacity: 0.6, cursor: 'not-allowed' }}
             />
           </div>
           <div className="fg">
@@ -43,6 +84,7 @@ function EditProfilePage({ user, onNavigate }) {
             <input
               type="tel"
               value={form.phone}
+              placeholder="+63 912 345 6789"
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
           </div>
@@ -51,11 +93,15 @@ function EditProfilePage({ user, onNavigate }) {
             <input
               type="text"
               value={form.barangay}
+              placeholder="Barangay 1"
               onChange={(e) => setForm({ ...form, barangay: e.target.value })}
             />
           </div>
         </div>
-        <button className="save-btn">Save Changes</button>
+        {success && <p style={{ color: 'var(--g600)', textAlign: 'center', fontWeight: '600' }}>✅ Profile updated!</p>}
+        <button className="save-btn" onClick={saveChanges} disabled={loading}>
+          {loading ? 'Saving...' : 'Save Changes'}
+        </button>
       </div>
     </div>
   );

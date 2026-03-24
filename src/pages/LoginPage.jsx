@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
 
 function LoginPage({ onNavigate, onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' });
   const [err, setErr] = useState('');
 
-  const submit = () => {
+  const submit = async () => {
     if (!form.email || !form.password) {
       setErr('Please fill in all fields.');
       return;
     }
-    onLogin({ email: form.email, name: form.email.split('@')[0] });
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, form.email, form.password);
+      const user = userCredential.user;
+      onLogin({ email: user.email, name: user.email.split('@')[0] });
+    } catch (error) {
+      setErr('Invalid email or password.');
+    }
   };
 
   return (

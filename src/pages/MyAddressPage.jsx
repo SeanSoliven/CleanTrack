@@ -1,13 +1,53 @@
 import React, { useState } from 'react';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import SubHeader from '../components/shared/SubHeader';
 
 function MyAddressPage({ onNavigate }) {
   const [addr, setAddr] = useState({
-    street: '12 Mabini Street',
-    barangay: 'Barangay 1',
-    city: 'Quezon City',
-    zone: 'Zone A',
+    street: '',
+    barangay: '',
+    city: '',
+    zone: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  React.useEffect(() => {
+    const fetchAddress = async () => {
+      if (!auth.currentUser) return;
+      const docRef = doc(db, 'users', auth.currentUser.uid);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        setAddr({
+          street: data.street || '',
+          barangay: data.barangay || '',
+          city: data.city || '',
+          zone: data.zone || '',
+        });
+      }
+    };
+    fetchAddress();
+  }, []);
+
+  const saveAddress = async () => {
+    setLoading(true);
+    try {
+      await setDoc(doc(db, 'users', auth.currentUser.uid), {
+        email: auth.currentUser.email,
+        street: addr.street,
+        barangay: addr.barangay,
+        city: addr.city,
+        zone: addr.zone,
+      }, { merge: true });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+    } catch (error) {
+      console.error('Error saving address:', error);
+    }
+    setLoading(false);
+  };
 
   return (
     <div className="sub-page page-full">
@@ -25,6 +65,7 @@ function MyAddressPage({ onNavigate }) {
             <input
               type="text"
               value={addr.street}
+              placeholder="12 Mabini Street"
               onChange={(e) => setAddr({ ...addr, street: e.target.value })}
             />
           </div>
@@ -33,6 +74,7 @@ function MyAddressPage({ onNavigate }) {
             <input
               type="text"
               value={addr.barangay}
+              placeholder="Barangay 1"
               onChange={(e) => setAddr({ ...addr, barangay: e.target.value })}
             />
           </div>
@@ -41,6 +83,7 @@ function MyAddressPage({ onNavigate }) {
             <input
               type="text"
               value={addr.city}
+              placeholder="Quezon City"
               onChange={(e) => setAddr({ ...addr, city: e.target.value })}
             />
           </div>
@@ -49,12 +92,15 @@ function MyAddressPage({ onNavigate }) {
             <input
               type="text"
               value={addr.zone}
-              onChange={(e) => setAddr({ ...addr, zone: e.target.value })}
               placeholder="e.g. Zone A"
+              onChange={(e) => setAddr({ ...addr, zone: e.target.value })}
             />
           </div>
         </div>
-        <button className="save-btn">Save Address</button>
+        {success && <p style={{ color: 'var(--g600)', textAlign: 'center', fontWeight: '600' }}>✅ Address saved!</p>}
+        <button className="save-btn" onClick={saveAddress} disabled={loading}>
+          {loading ? 'Saving...' : 'Save Address'}
+        </button>
       </div>
     </div>
   );
