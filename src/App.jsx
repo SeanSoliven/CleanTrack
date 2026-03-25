@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { signOut } from 'firebase/auth';
-import { auth } from './firebase';
+import React, { useState, useEffect } from 'react';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import './App.css';
 import BottomNav from './components/shared/BottomNav';
 import StartupPage from './pages/StartupPage';
@@ -22,8 +23,43 @@ import AdminPage from './pages/AdminPage';
 function App() {
   const [screen, setScreen] = useState('startup');
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const navigate = (to) => setScreen(to);
+
+  // Check Firebase auth state on app load
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser) {
+          // User is logged in, fetch their data from Firestore
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          const role = userDoc.exists() ? userDoc.data().role : 'user';
+          setUser({ email: firebaseUser.email, name: firebaseUser.email.split('@')[0], role });
+          // Only auto-navigate on initial load
+          if (!isInitialized) {
+            navigate(role === 'admin' ? 'admin' : 'home');
+            setIsInitialized(true);
+          }
+        } else {
+          // User is logged out
+          setUser(null);
+          // Only navigate to startup on initial load (not during manual logout)
+          if (!isInitialized) {
+            setIsInitialized(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error during auth state change:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isInitialized]);
 
   const onLogin = (userData) => {
     setUser(userData);
@@ -37,10 +73,14 @@ function App() {
   const onLogout = async () => {
     await signOut(auth);
     setUser(null);
-    navigate('startup');
+    navigate('login');
   };
 
   const showNav = ['home', 'report', 'activities', 'profile'].includes(screen);
+
+  if (loading) {
+    return <div className="shell"><div className="page-full" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div></div>;
+  }
 
   return (
     <div className="shell">

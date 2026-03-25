@@ -61,9 +61,9 @@ function AdminPage({ user, onNavigate, onLogout }) {
     <div style={{ background: 'var(--gray100)', minHeight: '100dvh' }}>
 
       {/* HEADER */}
-      <div className="auth-hdr" style={{ paddingBottom: '1.5rem' }}>
-        <div className="auth-hdr-blob" />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="auth-hdr" style={{ paddingBottom: '1.5rem', position: 'relative' }}>
+        <div className="auth-hdr-blob" style={{ pointerEvents: 'none' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10 }}>
           <div>
             <h2 style={{ margin: 0 }}>Admin Panel</h2>
             <p style={{ margin: 0, opacity: 0.85, fontSize: '0.85rem' }}>
@@ -71,7 +71,7 @@ function AdminPage({ user, onNavigate, onLogout }) {
             </p>
           </div>
           <button
-            onClick={onLogout}
+            onClick={() => onLogout()}
             style={{
               background: 'rgba(255,255,255,0.2)',
               border: '1px solid rgba(255,255,255,0.4)',
@@ -80,6 +80,8 @@ function AdminPage({ user, onNavigate, onLogout }) {
               padding: '0.4rem 0.9rem',
               cursor: 'pointer',
               fontSize: '0.85rem',
+              position: 'relative',
+              zIndex: 20,
             }}
           >
             Logout
