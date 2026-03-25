@@ -251,7 +251,7 @@ function AdminPage({ user, onNavigate, onLogout }) {
         </div>
       </div>
 
-      <div style={{ padding: '1rem' }}>
+      <div style={{ padding: '1rem', paddingBottom: '6rem' }}>
         {/* STATS ROW */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
           {[
@@ -296,7 +296,7 @@ function AdminPage({ user, onNavigate, onLogout }) {
         }}>
           <input
             type="text"
-            placeholder="Search"
+            placeholder="Search "
             value={searchTerm}
             onChange={e => {
               setSearchTerm(e.target.value);
@@ -732,19 +732,17 @@ function AdminPage({ user, onNavigate, onLogout }) {
         )}
 
         {/* ACTIVITY LOG */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1rem',
-          marginBottom: '2rem',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-        }}>
-          <h4 style={{ margin: '0 0 0.75rem', color: 'var(--g800)', fontSize: '0.9rem', fontWeight: 700 }}>
-            📋 Recent Activity
-          </h4>
-          {activityLog.length === 0 ? (
-            <div style={{ color: 'var(--g500)', fontSize: '0.85rem' }}>No activity yet. Perform actions to see logs here.</div>
-          ) : (
+        {activityLog.length > 0 && (
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '1rem',
+            marginBottom: '2rem',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+          }}>
+            <h4 style={{ margin: '0 0 0.75rem', color: 'var(--g800)', fontSize: '0.9rem', fontWeight: 700 }}>
+              📋 Recent Activity
+            </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {activityLog.slice(0, 10).map((log, idx) => (
                 <div key={idx} style={{
@@ -762,8 +760,70 @@ function AdminPage({ user, onNavigate, onLogout }) {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
+
+      {/* BOTTOM NAVIGATION - MODULE SWITCHER */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'white',
+        borderTop: '1px solid var(--gray300)',
+        boxShadow: '0 -2px 8px rgba(0,0,0,0.08)',
+        display: 'flex',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        padding: '0.5rem 0',
+        zIndex: 50,
+      }}>
+        {[
+          { id: 'reports', label: 'Reports', icon: '📊', enabled: true },
+          { id: 'users', label: 'Users', icon: '👥', enabled: false },
+          { id: 'analytics', label: 'Analytics', icon: '📈', enabled: false },
+          { id: 'settings', label: 'Settings', icon: '⚙️', enabled: false },
+        ].map(module => (
+          <button
+            key={module.id}
+            onClick={() => {
+              if (module.enabled && module.id !== 'reports') {
+                onNavigate(module.id);
+              }
+            }}
+            disabled={!module.enabled}
+            style={{
+              flex: 1,
+              padding: '0.75rem 0.5rem',
+              borderRadius: '0',
+              border: 'none',
+              background: module.id === 'reports' ? 'var(--g50)' : 'transparent',
+              color: module.id === 'reports' ? 'var(--g600)' : module.enabled ? 'var(--g600)' : 'var(--gray400)',
+              cursor: module.enabled ? 'pointer' : 'default',
+              fontSize: '0.75rem',
+              fontWeight: module.id === 'reports' ? 600 : 500,
+              textAlign: 'center',
+              opacity: module.enabled ? 1 : 0.5,
+              transition: 'all 0.2s',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+            onMouseEnter={e => {
+              if (module.enabled) {
+                e.currentTarget.style.background = 'var(--g50)';
+              }
+            }}
+            onMouseLeave={e => {
+              if (module.id !== 'reports') {
+                e.currentTarget.style.background = 'transparent';
+              }
+            }}
+          >
+            <div>{module.label}</div>
+          </button>
+        ))}
       </div>
 
       <style>{`
