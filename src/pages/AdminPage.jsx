@@ -7,36 +7,116 @@ function AdminPage({ user, onNavigate, onLogout }) {
   const [form, setForm] = useState({ title: '', description: '', status: 'Pending' });
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [sortBy, setSortBy] = useState('date');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkStatus, setBulkStatus] = useState('Pending');
+  const [toast, setToast] = useState({ message: '', type: '', show: false });
+  const [activityLog, setActivityLog] = useState([]);
 
   const colRef = collection(db, 'reports');
 
   const fetchReports = async () => {
     const snapshot = await getDocs(colRef);
-    setReports(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    setReports(snapshot.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt || new Date().toISOString() })));
   };
 
   useEffect(() => { fetchReports(); }, []);
 
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type, show: true });
+    setTimeout(() => setToast({ ...toast, show: false }), 3000);
+  };
+
+  const addActivity = (action, details) => {
+    setActivityLog(prev => [{
+      timestamp: new Date().toLocaleTimeString(),
+      action,
+      details,
+    }, ...prev.slice(0, 19)]);
+  };
+
   const handleAdd = async () => {
-    if (!form.title || !form.description) return;
-    await addDoc(colRef, { ...form, createdAt: new Date().toISOString() });
-    setForm({ title: '', description: '', status: 'Pending' });
-    setShowForm(false);
-    fetchReports();
+    if (!form.title || !form.description) {
+      showToast('Please fill in all fields', 'error');
+      return;
+    }
+    try {
+      await addDoc(colRef, { ...form, createdAt: new Date().toISOString() });
+      setForm({ title: '', description: '', status: 'Pending' });
+      setShowForm(false);
+      fetchReports();
+      showToast('Report added successfully');
+      addActivity('Created', form.title);
+    } catch (error) {
+      showToast('Error adding report', 'error');
+    }
   };
 
   const handleUpdate = async () => {
     if (!editingId) return;
-    await updateDoc(doc(db, 'reports', editingId), form);
-    setEditingId(null);
-    setForm({ title: '', description: '', status: 'Pending' });
-    setShowForm(false);
-    fetchReports();
+    try {
+      await updateDoc(doc(db, 'reports', editingId), form);
+      setEditingId(null);
+      setForm({ title: '', description: '', status: 'Pending' });
+      setShowForm(false);
+      fetchReports();
+      showToast('Report updated successfully');
+      addActivity('Updated', form.title);
+    } catch (error) {
+      showToast('Error updating report', 'error');
+    }
   };
 
   const handleDelete = async (id) => {
-    await deleteDoc(doc(db, 'reports', id));
-    fetchReports();
+    try {
+      await deleteDoc(doc(db, 'reports', id));
+      fetchReports();
+      showToast('Report deleted');
+      addActivity('Deleted', 'Report ID: ' + id);
+    } catch (error) {
+      showToast('Error deleting report', 'error');
+    }
+  };
+
+  const handleBulkStatusUpdate = async () => {
+    if (selectedIds.size === 0) {
+      showToast('Please select reports', 'error');
+      return;
+    }
+    try {
+      for (let id of selectedIds) {
+        await updateDoc(doc(db, 'reports', id), { status: bulkStatus });
+      }
+      setSelectedIds(new Set());
+      fetchReports();
+      showToast(`Updated ${selectedIds.size} reports to ${bulkStatus}`);
+      addActivity('Bulk Update', `Changed ${selectedIds.size} reports to ${bulkStatus}`);
+    } catch (error) {
+      showToast('Error updating reports', 'error');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      showToast('Please select reports', 'error');
+      return;
+    }
+    if (!window.confirm(`Delete ${selectedIds.size} reports?`)) return;
+    try {
+      for (let id of selectedIds) {
+        await deleteDoc(doc(db, 'reports', id));
+      }
+      setSelectedIds(new Set());
+      fetchReports();
+      showToast(`Deleted ${selectedIds.size} reports`);
+      addActivity('Bulk Delete', `Deleted ${selectedIds.size} reports`);
+    } catch (error) {
+      showToast('Error deleting reports', 'error');
+    }
   };
 
   const startEdit = (item) => {
@@ -57,8 +137,90 @@ function AdminPage({ user, onNavigate, onLogout }) {
     return '#ef4444';
   };
 
+  const filteredReports = reports.filter(r => {
+    const matchesSearch = (r.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (r.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'All' || r.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  const sortedReports = [...filteredReports].sort((a, b) => {
+    if (sortBy === 'date') {
+      const aTime = new Date(a.createdAt || 0).getTime() || 0;
+      const bTime = new Date(b.createdAt || 0).getTime() || 0;
+      return bTime - aTime;
+    }
+    if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '');
+    if (sortBy === 'status') return (a.status || 'Pending').localeCompare(b.status || 'Pending');
+    return 0;
+  });
+
+  const totalPages = Math.ceil(sortedReports.length / itemsPerPage);
+  const paginatedReports = sortedReports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const toggleSelect = (id) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedIds(newSet);
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === paginatedReports.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginatedReports.map(r => r.id)));
+    }
+  };
+
+  const exportToCSV = () => {
+    const csv = [
+      ['Title', 'Description', 'Status', 'Created Date'],
+      ...filteredReports.map(r => [
+        r.title || 'N/A',
+        r.description || 'N/A',
+        r.status || 'Pending',
+        new Date(r.createdAt).toLocaleDateString()
+      ])
+    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'reports.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    showToast('Reports exported as CSV');
+    addActivity('Export', `Exported ${filteredReports.length} reports to CSV`);
+  };
+
+  const stats = {
+    total: reports.length,
+    pending: reports.filter(r => r.status === 'Pending' || !r.status).length,
+    inProgress: reports.filter(r => r.status === 'In Progress').length,
+    resolved: reports.filter(r => r.status === 'Resolved').length,
+  };
+
   return (
     <div style={{ background: 'var(--gray100)', minHeight: '100dvh' }}>
+      {/* TOAST NOTIFICATION */}
+      {toast.show && (
+        <div style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          zIndex: 1000,
+          background: toast.type === 'error' ? '#ef4444' : 'var(--g600)',
+          color: 'white',
+          padding: '0.75rem 1rem',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          animation: 'slideIn 0.3s ease-out',
+        }}>
+          {toast.message}
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="auth-hdr" style={{ paddingBottom: '1.5rem', position: 'relative' }}>
@@ -90,13 +252,13 @@ function AdminPage({ user, onNavigate, onLogout }) {
       </div>
 
       <div style={{ padding: '1rem' }}>
-
         {/* STATS ROW */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
           {[
-            { label: 'Total', count: reports.length, emoji: '📋' },
-            { label: 'Pending', count: reports.filter(r => r.status === 'Pending' || !r.status).length, emoji: '🔴' },
-            { label: 'Resolved', count: reports.filter(r => r.status === 'Resolved').length, emoji: '✅' },
+            { label: 'Total', count: stats.total },
+            { label: 'Pending', count: stats.pending },
+            { label: 'In Progress', count: stats.inProgress },
+            { label: 'Resolved', count: stats.resolved },
           ].map(s => (
             <div key={s.label} style={{
               background: 'white',
@@ -104,12 +266,114 @@ function AdminPage({ user, onNavigate, onLogout }) {
               padding: '0.75rem',
               textAlign: 'center',
               boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.07)';
             }}>
-              <div style={{ fontSize: '1.4rem' }}>{s.emoji}</div>
               <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--g800)' }}>{s.count}</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--g500)' }}>{s.label}</div>
             </div>
           ))}
+        </div>
+
+        {/* SEARCH & FILTER */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1rem',
+          marginBottom: '1rem',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+          width: '100%',
+          maxWidth: '520px',
+          margin: '0 auto',
+        }}>
+          <input
+            type="text"
+            placeholder="Search"
+            value={searchTerm}
+            onChange={e => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              width: '100%',
+              height: '2rem',
+              padding: '0.6rem 0.75rem',
+              borderRadius: '8px',
+              border: '1.5px solid var(--gray300)',
+              fontSize: '0.84rem',
+              marginBottom: '0.5rem',
+            }}
+          />
+          <div style={{
+            height: '1px',
+            background: 'rgba(0, 0, 0, 0.08)',
+            margin: '0.4rem 0',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
+          }} />
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <select
+              value={filterStatus}
+              onChange={e => {
+                setFilterStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              style={{
+                flex: 1,
+                height: '2rem',
+                padding: '0.45rem 0.5rem',
+                borderRadius: '8px',
+                border: '1.5px solid var(--gray300)',
+                fontSize: '0.84rem',
+                background: 'white',
+              }}
+            >
+              <option>All</option>
+              <option>Pending</option>
+              <option>In Progress</option>
+              <option>Resolved</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              style={{
+                flex: 1,
+                height: '2rem',
+                padding: '0.45rem 0.5rem',
+                borderRadius: '8px',
+                border: '1.5px solid var(--gray300)',
+                fontSize: '0.84rem',
+                background: 'white',
+              }}
+            >
+              <option value="date">Sort: Date</option>
+              <option value="title">Sort: Title</option>
+              <option value="status">Sort: Status</option>
+            </select>
+            <button
+              onClick={exportToCSV}
+              style={{
+                height: '2rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'var(--g600)',
+                color: 'white',
+                cursor: 'pointer',
+                fontSize: '0.84rem',
+                fontWeight: 600,
+              }}
+            >
+              Export
+            </button>
+          </div>
         </div>
 
         {/* ADD BUTTON */}
@@ -200,11 +464,99 @@ function AdminPage({ user, onNavigate, onLogout }) {
           </div>
         )}
 
+        {/* BULK ACTIONS */}
+        {selectedIds.size > 0 && (
+          <div style={{
+            background: '#f0f9ff',
+            borderRadius: '12px',
+            padding: '1rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            border: '2px solid #0ea5e9',
+          }}>
+            <span style={{ fontWeight: 600, color: 'var(--g800)' }}>
+              {selectedIds.size} report{selectedIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <select
+                value={bulkStatus}
+                onChange={e => setBulkStatus(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '6px',
+                  border: '1px solid #0ea5e9',
+                  fontSize: '0.85rem',
+                  background: 'white',
+                }}
+              >
+                <option>Pending</option>
+                <option>In Progress</option>
+                <option>Resolved</option>
+              </select>
+              <button
+                onClick={handleBulkStatusUpdate}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#0ea5e9',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                }}
+              >
+                Update Status
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#ef4444',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* REPORTS LIST */}
-        <h3 style={{ margin: '0 0 0.75rem', color: 'var(--g800)', fontSize: '1rem' }}>
-          All Reports
-        </h3>
-        {reports.length === 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <h3 style={{ margin: 0, color: 'var(--g800)', fontSize: '1rem' }}>
+            All Reports ({filteredReports.length})
+          </h3>
+          {filteredReports.length > 0 && (
+            <select
+              value={itemsPerPage}
+              onChange={e => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              style={{
+                padding: '0.4rem',
+                borderRadius: '6px',
+                border: '1px solid var(--gray300)',
+                fontSize: '0.8rem',
+                background: 'white',
+              }}
+            >
+              <option value="5">5 per page</option>
+              <option value="10">10 per page</option>
+              <option value="20">20 per page</option>
+            </select>
+          )}
+        </div>
+
+        {filteredReports.length === 0 && (
           <div style={{
             background: 'white',
             borderRadius: '16px',
@@ -214,18 +566,35 @@ function AdminPage({ user, onNavigate, onLogout }) {
             boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
           }}>
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📭</div>
-            <p style={{ margin: 0 }}>No reports yet</p>
+            <p style={{ margin: 0 }}>No reports found</p>
           </div>
         )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {reports.map(item => (
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+          {paginatedReports.map(item => (
             <div key={item.id} style={{
               background: 'white',
               borderRadius: '16px',
               padding: '1rem',
               boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+              transition: 'all 0.2s',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.07)';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(item.id)}
+                  onChange={() => toggleSelect(item.id)}
+                  style={{ marginTop: '0.35rem', cursor: 'pointer' }}
+                />
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: '0 0 0.25rem', fontWeight: 700, color: 'var(--g800)', fontSize: '0.95rem' }}>
                     {item.title}
@@ -233,6 +602,9 @@ function AdminPage({ user, onNavigate, onLogout }) {
                   <p style={{ margin: '0 0 0.5rem', color: 'var(--g500)', fontSize: '0.82rem' }}>
                     {item.description}
                   </p>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', color: 'var(--g500)' }}>
+                    <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'No date'}</span>
+                  </div>
                   <span style={{
                     fontSize: '0.72rem',
                     fontWeight: 600,
@@ -240,11 +612,13 @@ function AdminPage({ user, onNavigate, onLogout }) {
                     background: `${statusColor(item.status)}18`,
                     padding: '0.2rem 0.6rem',
                     borderRadius: '999px',
+                    display: 'inline-block',
+                    marginTop: '0.5rem',
                   }}>
                     {item.status || 'Pending'}
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.4rem', marginLeft: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button
                     onClick={() => startEdit(item)}
                     style={{
@@ -256,6 +630,15 @@ function AdminPage({ user, onNavigate, onLogout }) {
                       fontSize: '0.8rem',
                       color: 'var(--g700)',
                       fontWeight: 600,
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'var(--g200)';
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'var(--g100)';
+                      e.currentTarget.style.transform = 'scale(1)';
                     }}
                   >
                     ✏️
@@ -271,6 +654,15 @@ function AdminPage({ user, onNavigate, onLogout }) {
                       fontSize: '0.8rem',
                       color: '#ef4444',
                       fontWeight: 600,
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#fee2e2';
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#fef2f2';
+                      e.currentTarget.style.transform = 'scale(1)';
                     }}
                   >
                     🗑️
@@ -280,7 +672,112 @@ function AdminPage({ user, onNavigate, onLogout }) {
             </div>
           ))}
         </div>
+
+        {/* PAGINATION */}
+        {totalPages > 1 && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            marginBottom: '2rem',
+            flexWrap: 'wrap',
+          }}>
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              style={{
+                padding: '0.5rem 0.75rem',
+                borderRadius: '6px',
+                border: '1px solid var(--gray300)',
+                background: currentPage === 1 ? 'var(--gray100)' : 'white',
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                fontSize: '0.85rem',
+              }}
+            >
+              ← Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '6px',
+                  border: page === currentPage ? 'none' : '1px solid var(--gray300)',
+                  background: page === currentPage ? 'var(--g600)' : 'white',
+                  color: page === currentPage ? 'white' : 'var(--g800)',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: page === currentPage ? 600 : 400,
+                }}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              style={{
+                padding: '0.5rem 0.75rem',
+                borderRadius: '6px',
+                border: '1px solid var(--gray300)',
+                background: currentPage === totalPages ? 'var(--gray100)' : 'white',
+                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                fontSize: '0.85rem',
+              }}
+            >
+              Next →
+            </button>
+          </div>
+        )}
+
+        {/* ACTIVITY LOG */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1rem',
+          marginBottom: '2rem',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+        }}>
+          <h4 style={{ margin: '0 0 0.75rem', color: 'var(--g800)', fontSize: '0.9rem', fontWeight: 700 }}>
+            📋 Recent Activity
+          </h4>
+          {activityLog.length === 0 ? (
+            <div style={{ color: 'var(--g500)', fontSize: '0.85rem' }}>No activity yet. Perform actions to see logs here.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {activityLog.slice(0, 10).map((log, idx) => (
+                <div key={idx} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '0.5rem',
+                  borderRadius: '6px',
+                  background: 'var(--gray100)',
+                  fontSize: '0.8rem',
+                }}>
+                  <span style={{ color: 'var(--g800)', fontWeight: 500 }}>
+                    {log.action}: {log.details}
+                  </span>
+                  <span style={{ color: 'var(--g500)' }}>{log.timestamp}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      <style>{`
+        @keyframes slideIn {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 }
