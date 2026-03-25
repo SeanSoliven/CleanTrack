@@ -17,6 +17,7 @@ import MyAddressPage from './pages/MyAddressPage';
 import MyReportsPage from './pages/MyReportsPage';
 import HelpPage from './pages/HelpPage';
 import AboutPage from './pages/AboutPage';
+import AdminPage from './pages/AdminPage';
 
 function App() {
   const [screen, setScreen] = useState('startup');
@@ -26,7 +27,11 @@ function App() {
 
   const onLogin = (userData) => {
     setUser(userData);
-    navigate('home');
+    if (userData.role === 'admin') {
+      navigate('admin');
+    } else {
+      navigate('home');
+    }
   };
 
   const onLogout = async () => {
@@ -54,6 +59,7 @@ function App() {
         {screen === 'my-reports' && <MyReportsPage onNavigate={navigate} />}
         {screen === 'help' && <HelpPage onNavigate={navigate} />}
         {screen === 'about' && <AboutPage onNavigate={navigate} />}
+        {screen === 'admin' && <AdminPage user={user} onNavigate={navigate} onLogout={onLogout} />}
       </div>
       {showNav && <BottomNav currentScreen={screen} onNavigate={navigate} />}
     </div>

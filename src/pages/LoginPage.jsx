@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 
 function LoginPage({ onNavigate, onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -14,7 +15,12 @@ function LoginPage({ onNavigate, onLogin }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, form.email, form.password);
       const user = userCredential.user;
-      onLogin({ email: user.email, name: user.email.split('@')[0] });
+
+      // Check role in Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const role = userDoc.exists() ? userDoc.data().role : 'user';
+
+      onLogin({ email: user.email, name: user.email.split('@')[0], role });
     } catch (error) {
       setErr('Invalid email or password.');
     }
