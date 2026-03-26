@@ -6,6 +6,9 @@ function RegisterPage({ onNavigate, onLogin }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [err, setErr] = useState('');
   const [fieldErrors, setFieldErrors] = useState({ email: '', password: '', confirm: '' });
+  
+  // 1. Add state for visibility
+  const [showPass, setShowPass] = useState(false);
 
   const validateEmail = (email) => {
     if (!email.includes('@gmail.com')) {
@@ -76,19 +79,29 @@ function RegisterPage({ onNavigate, onLogin }) {
     }
   };
 
+  const eyeButtonStyle = {
+    position: 'absolute',
+    right: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '1.2rem',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0',
+    color: '#666',
+    zIndex: 2
+  };
+
   return (
     <div className="auth-page page-full">
       <div className="auth-hdr">
         <div className="auth-hdr-blob" />
         <button className="back-btn" onClick={() => onNavigate('startup')}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M12 4L6 10L12 16"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M12 4L6 10L12 16" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
         <h2>Create account</h2>
@@ -105,6 +118,7 @@ function RegisterPage({ onNavigate, onLogin }) {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </div>
+          
           <div className="fg">
             <label>Email</label>
             <input
@@ -116,28 +130,45 @@ function RegisterPage({ onNavigate, onLogin }) {
             />
             {fieldErrors.email && <p style={{ fontSize: '0.8rem', color: 'var(--danger)', marginTop: '4px' }}>{fieldErrors.email}</p>}
           </div>
+
+          {/* Password Field with Eye */}
           <div className="fg">
             <label>Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              onBlur={handlePasswordBlur}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPass ? "text" : "password"}
+                placeholder="••••••••"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onBlur={handlePasswordBlur}
+                style={{ paddingRight: '45px' }} // prevent text from going under the icon
+              />
+              <button type="button" onClick={() => setShowPass(!showPass)} style={eyeButtonStyle}>
+                {showPass ? '👁️' : '🙈'}
+              </button>
+            </div>
             {fieldErrors.password && <p style={{ fontSize: '0.8rem', color: 'var(--danger)', marginTop: '4px' }}>{fieldErrors.password}</p>}
           </div>
+
+          {/* Confirm Password Field with Eye */}
           <div className="fg">
             <label>Confirm Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={form.confirm}
-              onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-              onBlur={handleConfirmBlur}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPass ? "text" : "password"}
+                placeholder="••••••••"
+                value={form.confirm}
+                onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+                onBlur={handleConfirmBlur}
+                style={{ paddingRight: '45px' }}
+              />
+              <button type="button" onClick={() => setShowPass(!showPass)} style={eyeButtonStyle}>
+                {showPass ? '👁️' : '🙈'}
+              </button>
+            </div>
             {fieldErrors.confirm && <p style={{ fontSize: '0.8rem', color: 'var(--danger)', marginTop: '4px' }}>{fieldErrors.confirm}</p>}
           </div>
+
           {err && <p className="form-err">{err}</p>}
           <button className="btn-green" onClick={submit}>
             Create Account
