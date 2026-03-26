@@ -6,6 +6,9 @@ import { auth, db } from '../firebase';
 function LoginPage({ onNavigate, onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' });
   const [err, setErr] = useState('');
+  
+  // 1. Add visibility state
+  const [showPass, setShowPass] = useState(false);
 
   const submit = async () => {
     if (!form.email || !form.password) {
@@ -16,7 +19,6 @@ function LoginPage({ onNavigate, onLogin }) {
       const userCredential = await signInWithEmailAndPassword(auth, form.email, form.password);
       const user = userCredential.user;
 
-      // Check role in Firestore
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const role = userDoc.exists() ? userDoc.data().role : 'user';
 
@@ -24,6 +26,23 @@ function LoginPage({ onNavigate, onLogin }) {
     } catch (error) {
       setErr('Invalid email or password.');
     }
+  };
+
+  // 2. Reuse the styling for the icon positioning
+  const eyeButtonStyle = {
+    position: 'absolute',
+    right: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '1.2rem',
+    color: '#666',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0',
+    zIndex: 2
   };
 
   return (
@@ -55,15 +74,28 @@ function LoginPage({ onNavigate, onLogin }) {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </div>
-          <div className="fg">
+
+          {/* 3. Wrap Password input in a relative div */}
+          <div className="fg" style={{ position: 'relative' }}>
             <label>Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPass ? "text" : "password"}
+                placeholder="••••••••"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                style={{ paddingRight: '45px' }} // Room for the icon
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPass(!showPass)} 
+                style={eyeButtonStyle}
+              >
+                {showPass ? '👁️' : '🙈'}
+              </button>
+            </div>
           </div>
+
           {err && <p className="form-err">{err}</p>}
           <button className="btn-green" onClick={submit}>
             Sign In
