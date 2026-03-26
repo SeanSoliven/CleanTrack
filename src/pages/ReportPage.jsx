@@ -2,11 +2,18 @@ import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { REPORT_TYPES } from '../constants';
+import GoogleMapPicker from '../components/shared/GoogleMapPicker';
 
 function ReportPage({ onNavigate }) {
   const [step, setStep] = useState(1);
   const [type, setType] = useState(null);
-  const [form, setForm] = useState({ address: '', description: '', severity: 'medium' });
+  const [form, setForm] = useState({
+    address: '',
+    description: '',
+    severity: 'medium',
+    lat: null,
+    lng: null,
+  });
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refNumber] = useState(() => Math.floor(Math.random() * 90000 + 10000));
@@ -19,6 +26,10 @@ function ReportPage({ onNavigate }) {
         type: type.label,
         icon: type.icon,
         address: form.address,
+        coordinates:
+          Number.isFinite(form.lat) && Number.isFinite(form.lng)
+            ? { lat: form.lat, lng: form.lng }
+            : null,
         description: form.description,
         severity: form.severity,
         status: 'Pending',
@@ -64,7 +75,13 @@ function ReportPage({ onNavigate }) {
               setDone(false);
               setStep(1);
               setType(null);
-              setForm({ address: '', description: '', severity: 'medium' });
+              setForm({
+                address: '',
+                description: '',
+                severity: 'medium',
+                lat: null,
+                lng: null,
+              });
             }}
           >
             Submit Another
@@ -143,6 +160,20 @@ function ReportPage({ onNavigate }) {
               placeholder="e.g. 12 Mabini St, Barangay 1"
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
+            />
+          </div>
+          <div className="fg">
+            <label>Map Location (optional but recommended)</label>
+            <GoogleMapPicker
+              value={{ address: form.address, lat: form.lat, lng: form.lng }}
+              onChange={(next) =>
+                setForm((prev) => ({
+                  ...prev,
+                  address: next.address ?? prev.address,
+                  lat: Number.isFinite(next.lat) ? next.lat : null,
+                  lng: Number.isFinite(next.lng) ? next.lng : null,
+                }))
+              }
             />
           </div>
           <div className="fg">
